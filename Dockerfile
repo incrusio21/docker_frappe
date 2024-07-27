@@ -21,6 +21,7 @@ RUN useradd -ms /bin/bash frappe \
     gettext-base \
     file \
     openssh-server \
+    sudo \
     # weasyprint dependencies
     libpango-1.0-0 \
     libharfbuzz0b \
@@ -152,8 +153,10 @@ VOLUME [ \
   "/home/frappe/frappe-bench" \
 ]
 
+EXPOSE 22
+
 CMD [\
-    "/bin/bash", "-c", "service ssh start &&", \ 
+    "/usr/sbin/sshd", "-D", \ 
     "/home/frappe/frappe-bench/env/bin/gunicorn", \ 
     "--chdir=/home/frappe/frappe-bench/sites", \ 
     "--bind=0.0.0.0:8000", \
