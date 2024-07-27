@@ -1,0 +1,73 @@
+version: "3.7"
+name: "frappe-project"
+services:
+  mariadb:
+    image: mariadb:10.6
+    healthcheck:
+      test: 'mysqladmin ping -h localhost --password=admin'
+      interval: 1s
+      retries: 15
+    deploy:
+      restart_policy:
+        condition: on-failure
+    command:
+      - --character-set-server=utf8mb4
+      - --collation-server=utf8mb4_unicode_ci
+      - --skip-character-set-client-handshake
+      - --skip-innodb-read-only-compressed # Temporary fix for MariaDB 10.6
+    environment:
+      MYSQL_ROOT_PASSWORD: admin
+    volumes:
+      - mariadb-data:/var/lib/mysql
+
+  redis-cache:
+    image: redis:alpine
+
+  redis-queue:
+    image: redis:alpine
+
+  redis-socketio:
+    image: redis:alpine
+
+  frontend:
+    image: incrusio21/myfrappeproject-frappe
+    deploy:
+      restart_policy:
+        condition: on-failure
+    command:
+      - nginx-entrypoint.sh
+    environment:
+      BACKEND: frappe:8000
+      FRAPPE_SITE_NAME_HEADER: frontend
+      SOCKETIO: frappe:9000
+      UPSTREAM_REAL_IP_ADDRESS: 127.0.0.1
+      UPSTREAM_REAL_IP_HEADER: X-Forwarded-For
+      UPSTREAM_REAL_IP_RECURSIVE: "off"
+      PROXY_READ_TIMEOUT: 120
+      CLIENT_MAX_BODY_SIZE: 50m
+    volumes:
+      - frappe-bench:/home/frappe/frappe-bench
+    ports:
+      - "8080:8080"
+
+  frappe:
+    build:
+      dockerfile: Dockerfile
+    image: incrusio21/myfrappeproject-frappe
+    deploy:
+      restart_policy:
+        condition: on-failure
+    command: sleep infinity
+    environment:
+      - SHELL=/bin/bash
+    volumes:
+      - frappe-bench:/home/frappe/frappe-bench
+      # Enable if you require git cloning
+      # - ${HOME}/.ssh:/home/frappe/.ssh
+    working_dir: /home/frappe/frappe-bench
+    ports:
+      - "5001:22"
+
+volumes:
+  frappe-bench:
+  mariadb-data:
