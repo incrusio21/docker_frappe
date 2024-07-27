@@ -48,7 +48,7 @@ services:
     volumes:
       - frappe-bench:/home/frappe/frappe-bench
     ports:
-      - "8080:8080"
+      - "${WEB_PORT}:8080"
 
   frappe:
     build:
@@ -66,7 +66,7 @@ services:
       # - ${HOME}/.ssh:/home/frappe/.ssh
     working_dir: /home/frappe/frappe-bench
     ports:
-      - "5001:22"
+      - "${SSH_PORT}:22"
 
 volumes:
   frappe-bench:
