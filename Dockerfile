@@ -2,8 +2,8 @@ ARG PYTHON_VERSION=3.11.6
 ARG DEBIAN_BASE=bookworm
 FROM python:${PYTHON_VERSION}-slim-${DEBIAN_BASE} AS base
 
-COPY resources/nginx-template.conf /templates/nginx/frappe.conf.template
-COPY resources/nginx-entrypoint.sh /usr/local/bin/nginx-entrypoint.sh
+# COPY resources/nginx-template.conf /templates/nginx/frappe.conf.template
+# COPY resources/nginx-entrypoint.sh /usr/local/bin/nginx-entrypoint.sh
 
 ARG WKHTMLTOPDF_VERSION=0.12.6.1-3
 ARG WKHTMLTOPDF_DISTRO=bookworm
@@ -11,17 +11,18 @@ ARG NODE_VERSION=18.18.2
 ENV NVM_DIR=/home/frappe/.nvm
 ENV PATH=${NVM_DIR}/versions/node/v${NODE_VERSION}/bin/:${PATH}
 
-RUN useradd -ms /bin/bash frappe \
-    && apt-get update \
-    && apt-get install --no-install-recommends -y \
+RUN useradd -ms /bin/bash frappe &&\
+    usermod -aG sudo frappe && \
+    apt-get update && \
+    apt-get install -y openssh-server \ 
+    sudo \
+    supervisor \
     curl \
     git \
     vim \
     nginx \
     gettext-base \
     file \
-    openssh-server \
-    sudo \
     # weasyprint dependencies
     libpango-1.0-0 \
     libharfbuzz0b \
@@ -70,13 +71,16 @@ RUN useradd -ms /bin/bash frappe \
     && chown -R frappe:frappe /etc/nginx/nginx.conf \
     && chown -R frappe:frappe /var/log/nginx \
     && chown -R frappe:frappe /var/lib/nginx \
-    && chown -R frappe:frappe /run/nginx.pid \
-    && chmod 755 /usr/local/bin/nginx-entrypoint.sh \
-    && chmod 644 /templates/nginx/frappe.conf.template \
-    && echo 'root:Rahasiakit@' | chpasswd \
-    && mkdir /var/run/sshd \
-    && sed -i 's/#PermitRootLogin prohibit-password/PermitRootLogin yes/' /etc/ssh/sshd_config \
-    && sed -i 's/#PasswordAuthentication yes/PasswordAuthentication yes/' /etc/ssh/sshd_config
+    && chown -R frappe:frappe /run/nginx.pid 
+    # && chmod 755 /usr/local/bin/nginx-entrypoint.sh \
+    # && chmod 644 /templates/nginx/frappe.conf.template
+
+RUN echo 'frappe ALL=(ALL) NOPASSWD:ALL' >> /etc/sudoers
+RUN mkdir /var/run/sshd
+# Set root password for SSH access (change 'your_password' to your desired password)
+RUN echo 'root:Rahasiakit@' | chpasswd
+RUN sed -i 's/#PermitRootLogin prohibit-password/PermitRootLogin yes/' /etc/ssh/sshd_config
+RUN sed 's@session\s*required\s*pam_loginuid.so@session optional pam_loginuid.so@g' -i /etc/pam.d/sshd
 
 FROM base AS builder
 
@@ -140,7 +144,6 @@ RUN export APP_INSTALL_ARGS="" && \
   bench set-config -g redis_queue redis://redis-queue:6379 && \
   bench set-config -g redis_socketio redis://redis-queue:6379
 
-
 FROM base AS backend
 
 USER frappe
@@ -153,14 +156,14 @@ VOLUME [ \
   "/home/frappe/frappe-bench" \
 ]
 
+RUN bench setup supervisor
+    
+USER root
+
+RUN ln -s `pwd`/config/supervisor.conf /etc/supervisor/conf.d/frappe-bench.conf
+
 EXPOSE 22
 
 CMD [\
-    "/usr/sbin/sshd", "-D", \ 
-    "/home/frappe/frappe-bench/env/bin/gunicorn", \ 
-    "--chdir=/home/frappe/frappe-bench/sites", \ 
-    "--bind=0.0.0.0:8000", \
-    "--threads=4", \ 
-    "--workers=2", \
-    "--worker-class=gthread --worker-tmp-dir=/dev/shm --timeout=120 --preload frappe.app:application" \
+    "/usr/sbin/sshd", "-D" \
 ]
