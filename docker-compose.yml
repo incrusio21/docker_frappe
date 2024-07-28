@@ -60,7 +60,6 @@ services:
     deploy:
       restart_policy:
         condition: on-failure
-    command: sleep infinity
     environment:
       - SHELL=/bin/bash
     volumes:
