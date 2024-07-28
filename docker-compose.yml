@@ -53,6 +53,10 @@ services:
     build:
       dockerfile: Dockerfile
     image: incrusio21/myfrappeproject-frappe
+    depends_on:
+      - redis-cache
+      - redis-queue
+      - redis-socketio
     deploy:
       restart_policy:
         condition: on-failure
